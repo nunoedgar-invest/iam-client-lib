@@ -179,12 +179,14 @@ export class IAMBase {
     if (this._connectionOptions.privateKey) {
       this._keys = new Keys({ privateKey: this._connectionOptions.privateKey });
       this._signer = new Wallet(this._connectionOptions.privateKey, this._provider);
+      console.log('Finished Signer and return...');
       return;
     }
     if (this._runningInBrowser) {
       const metamaskProvider = (await detectMetamask({
         mustBeMetaMask: true
       })) as any;
+      console.log('Done setting up metamask provider');
       if (metamaskProvider && useMetamask) {
         await metamaskProvider.request({ method: "wallet_requestPermissions" });
         const provider = new providers.Web3Provider(metamaskProvider);
@@ -195,6 +197,7 @@ export class IAMBase {
         gasLimit: hexlify(4900000),
         gasPrice: hexlify(0.1)
       };
+      console.log('creating new wallet connect provider')
       this._walletConnectProvider = new WalletConnectProvider({
         rpc: {
           [this._connectionOptions.chainId]: this._connectionOptions.rpcUrl
@@ -202,8 +205,11 @@ export class IAMBase {
         infuraId: this._connectionOptions.infuraId,
         bridge: this._connectionOptions.bridgeUrl
       });
-      await this._walletConnectProvider.enable();
+      console.log('enable wallet connect')
+      let isEnabled = await this._walletConnectProvider.enable();
+      console.log('finished enabling connect', isEnabled);
       this._signer = new providers.Web3Provider(this._walletConnectProvider).getSigner();
+      console.log('finished creating signer');
     }
   }
 

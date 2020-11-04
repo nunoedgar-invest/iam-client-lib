@@ -110,6 +110,7 @@ export class IAM extends IAMBase {
   ): Promise<InitializeData> {
     try {
       await this.init({ useMetamask: useMetamaskExtension });
+      console.log('I am resolved...');
     } catch (err) {
       if (err.message === "User closed modal") {
         return {
