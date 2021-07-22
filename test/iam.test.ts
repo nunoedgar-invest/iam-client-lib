@@ -77,7 +77,7 @@ beforeAll(async () => {
 /**
    * @todo should be refactored because some tests depends on 'create root node'
    */
-describe("IAM tests", () => {
+describe.only("IAM tests", () => {
   test("can create root node", async () => {
     const tx = await ensRegistry.setSubnodeRecord(
       namehash(""),
@@ -105,10 +105,10 @@ describe("IAM tests", () => {
   });
 });
 
-describe("Organization tests", orgTests);
+describe.only("Organization tests", orgTests);
 describe("Application tests", appsTests);
 describe("InitializeConnection tests", initializeConnectionTests);
 describe("Claim tests", claimsTests);
 describe("Utils tests", utilsTests);
 describe("Assets tests", assetsTests);
-describe("Staking tests", stakingTests);
+describe.only("Staking tests", stakingTests);
