@@ -34,7 +34,7 @@ import { JWT } from "@ew-did-registry/jwt";
 import { privToPem, KeyType } from "@ew-did-registry/keys";
 import { readyToBeRegisteredOnchain } from "./claims.types";
 
-const { id, keccak256, defaultAbiCoder, solidityKeccak256, namehash, arrayify } = utils;
+const { id, keccak256, defaultAbiCoder, solidityKeccak256, namehash, arrayify, verifyMessage } = utils;
 
 export class ClaimsService {
     private _claimManager: string;
@@ -156,9 +156,11 @@ export class ClaimsService {
         registrationTypes?: RegistrationTypes[];
     }) {
         const { claimType: role, claimTypeVersion: version } = claim;
+        console.log(">>> creating claim with data:", { claim, subject });
         const token = await this._didRegistry.createPublicClaim({ data: claim, subject });
-
+        console.log(">>> claim is created");
         await this.verifyEnrolmentPrerequisites({ subject, role });
+        console.log(">>> enrollement preconditions are verified");
 
         // temporarily, until claimIssuer is not removed from Claim entity
         const issuer = [`did:${Methods.Erc1056}:${this._signerService.chainName()}:${emptyAddress}`];
@@ -178,9 +180,11 @@ export class ClaimsService {
                 throw new Error(ERROR_MESSAGES.ONCHAIN_ROLE_VERSION_NOT_SPECIFIED);
             }
             message.subjectAgreement = await this.approveRolePublishing({ subject, role, version });
+            console.log(">>> subject agreement is received");
         }
 
         await this._cacheClient.requestClaim(subject, message);
+        console.log(">>> claim request is posted on cache server");
     }
 
     /**
@@ -205,6 +209,7 @@ export class ClaimsService {
         issuerFields?: { key: string; value: string | number }[];
         publishOnChain?: boolean;
     }) {
+        console.group("issue claim");
         const { claimData, sub } = this._didRegistry.jwt.decode(token) as {
             claimData: { claimType: string; claimTypeVersion: number };
             sub: string;
@@ -228,11 +233,13 @@ export class ClaimsService {
             message.issuedToken = await this._didRegistry.issuePublicClaim({
                 publicClaim,
             });
+            console.log("issued offchain cliam:", publicClaim);
         }
         if (registrationTypes.includes(RegistrationTypes.OnChain)) {
             const { claimType: role, claimTypeVersion: version } = claimData;
             const expiry = defaultClaimExpiry;
             const onChainProof = await this.createOnChainProof(role, version, expiry, sub);
+            console.log("created onchain proof:", onChainProof);
             message.onChainProof = onChainProof;
             if (publishOnChain) {
                 await this.registerOnchain({
@@ -242,8 +249,10 @@ export class ClaimsService {
                     acceptedBy: this._signerService.did,
                 });
             }
+            console.log("onchain proof is published");
         }
 
+        console.groupEnd();
         return this._cacheClient.issueClaim(this._signerService.did, message);
     }
 
@@ -263,6 +272,15 @@ export class ClaimsService {
         };
         const expiry = defaultClaimExpiry;
         const { claimType: role, claimTypeVersion: version } = claimData;
+        console.log("registering onchain with data:", [
+            addressOf(sub),
+            namehash(role),
+            version,
+            expiry,
+            addressOf(acceptedBy),
+            subjectAgreement,
+            onChainProof,
+        ]);
         const data = this._claimManagerInterface.encodeFunctionData("register", [
             addressOf(sub),
             namehash(role),
@@ -272,6 +290,7 @@ export class ClaimsService {
             subjectAgreement,
             onChainProof,
         ]);
+        console.log(">>> encoded register call:", data);
         await this._signerService.send({
             to: this._claimManager,
             data,
@@ -456,6 +475,14 @@ export class ClaimsService {
             ),
         );
 
+        console.log("proof hash data:", [
+            proof_type_hash,
+            addressOf(subject),
+            namehash(role),
+            version,
+            expiry,
+            this._signerService.address,
+        ]);
         const proofHash = solidityKeccak256(
             ["bytes", "bytes32", "bytes32"],
             [
@@ -476,8 +503,9 @@ export class ClaimsService {
                 ),
             ],
         );
-
-        return canonizeSig(await this._signerService.signMessage(arrayify(proofHash)));
+        const proof = await this._signerService.signMessage(arrayify(proofHash));
+        console.log(">>> verified onchain proof signer:", verifyMessage(arrayify(proofHash), proof));
+        return proof;
     }
 
     private async approveRolePublishing({
@@ -494,7 +522,7 @@ export class ClaimsService {
         );
         const agreement_type_hash = id("Agreement(address subject,bytes32 role,uint256 version)");
 
-        const chainId = await this._signerService.chainId;
+        const chainId = this._signerService.chainId;
         const domainSeparator = keccak256(
             defaultAbiCoder.encode(
                 ["bytes32", "bytes32", "bytes32", "uint256", "address"],
@@ -503,6 +531,7 @@ export class ClaimsService {
         );
 
         const messageId = Buffer.from(typedMsgPrefix, "hex");
+        console.log(">>> agreement data:", [agreement_type_hash, addressOf(subject), namehash(role), version]);
 
         const agreementHash = solidityKeccak256(
             ["bytes", "bytes32", "bytes32"],
@@ -517,8 +546,9 @@ export class ClaimsService {
                 ),
             ],
         );
-
-        return canonizeSig(await this._signerService.signMessage(arrayify(agreementHash)));
+        const approval = canonizeSig(await this._signerService.signMessage(arrayify(agreementHash)));
+        console.log(">>> verified approver:", verifyMessage(arrayify(agreementHash), approval));
+        return approval;
     }
 
     /**

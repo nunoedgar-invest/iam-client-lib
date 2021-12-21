@@ -2,7 +2,7 @@ export enum ERROR_MESSAGES {
     UNKNOWN_PROVIDER = "Unknown provider type",
     ENS_TYPE_NOT_SUPPORTED = "ENS type not supported",
     WALLET_PROVIDER_NOT_SUPPORTED = "Wallet provider must be a supported value",
-    PUBLIC_KEY_NOT_RECOVERED = "Public key not recovered",
+    NON_EIP191_SIGNER = "Signer is not EIP-191 compliant",
     ORG_WITH_APPS = "You are not able to remove organization with registered apps",
     ORG_WITH_ROLES = "You are not able to remove organization with registered roles",
     APP_WITH_ROLES = "You are not able to remove application with registered roles",
